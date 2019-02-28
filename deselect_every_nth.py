@@ -2,6 +2,7 @@ import re
 import sublime
 import sublime_plugin
 
+from string import Template
 
 def used_sel(rx):
 	return '$_' in rx
@@ -13,6 +14,11 @@ def unwrap_sel(rx, s):
 
 
 class SelectByRegexBase(sublime_plugin.TextCommand):
+	
+	def init_regex(self):
+		self.regex_tmplt = Template('(.*(\\n|$$)){$nr}')
+		# self.regex_tmplt = Template('self')
+
 
 	# Add regions from regex match
 	def mark_groups(self, match):
@@ -44,63 +50,66 @@ class SelectByRegexBase(sublime_plugin.TextCommand):
 		self.active_view.erase_regions('select by regex: inner')
 		self.active_view.settings().erase('select_by_regex_running')
 
-	def on_done(self, rx):
+	def on_done(self, nr):
 		self.erase_regions()
 		self.active_view.sel().add_all(self.inner_regions)
 
 	def on_cancel(self):
 		self.erase_regions()
 		self.active_view.sel().add_all(self.selections)
-		self.active_view.show(self.selections[0])
+		self.active_view.show(self.selections[0]) 
 
 
-class SelectByRegexNext(SelectByRegexBase):
+class DeselectEveryNthNext(SelectByRegexBase):
 
 	is_running = False
 	active_me = None
 
 	def me(self):
-		if SelectByRegexNext.is_running and SelectByRegexNext.active_me is not None:
-			return SelectByRegexNext.active_me
+		if DeselectEveryNthNext.is_running and DeselectEveryNthNext.active_me is not None:
+			return DeselectEveryNthNext.active_me
 		return self
 
 	def run(self, edit, regex = None):
-		if SelectByRegexNext.is_running:
+		super(DeselectEveryNthNext, self).init_regex()
+
+		if DeselectEveryNthNext.is_running:
 			self.me().regions = self.me().active_view.get_regions('select by regex: regions')
 			if regex:
 				self.me().regex = regex
 		else:
 			self.regex = regex or ''
 			self.active_view = self.view
-			SelectByRegexNext.is_running = True
+			DeselectEveryNthNext.is_running = True
 			self.selections = [r for r in self.active_view.sel()]
 			self.regions = self.selections.copy()
 			self.active_view.add_regions('select by regex: selections', self.selections, '', '', sublime.HIDDEN)
-			SelectByRegexNext.active_me = self
+			DeselectEveryNthNext.active_me = self
 
 		self.me().text = self.me().active_view.substr(sublime.Region(0, self.me().active_view.size()))
 		self.me().active_view.sel().clear()
 		self.me().active_view.window().show_input_panel(
 			'regex',
-			self.me().regex,
+			self.me().number,
 			self.me().on_done,
 			self.me().on_change,
 			self.me().on_cancel)
-		if self.me().regex:
+		if self.me().number:
 			print('REGEX: {0}'.format(self.me().regex))
 			self.me().on_change(self.me().regex)
 
-	def on_done(self, rx):
-		super(SelectByRegexNext, self).on_done(rx)
-		SelectByRegexNext.is_running = False
+	def on_done(self, nr):
+		super(DeselectEveryNthNext, self).on_done(self.rx)
+		DeselectEveryNthNext.is_running = False
 
 	def on_cancel(self):
-		super(SelectByRegexNext, self).on_cancel()
-		SelectByRegexNext.is_running = False
+		super(DeselectEveryNthNext, self).on_cancel()
+		DeselectEveryNthNext.is_running = False
 
-	def on_change(self, rx):
+	def on_change(self, nr):
 		print('CHANGE: {0}'.format(self.regions))
-		self.regex = rx
+		self.nr = nr
+		self.rx = self.regex_tmplt.substitute(nr=nr)
 		self.inner_regions = []
 		self.outer_regions = []
 		self.highlight_regions = []
@@ -118,9 +127,11 @@ class SelectByRegexNext(SelectByRegexBase):
 		self.mark_regions()
 
 
-class SelectByRegexAll(SelectByRegexBase):
+class DeselectEveryNthAll(SelectByRegexBase):
 
 	def run(self, edit, regex = None):
+		super(DeselectEveryNthAll, self).init_regex()
+
 		self.active_view = self.view
 		self.selections = [r for r in self.active_view.sel()]
 		self.active_view.add_regions('select by regex: selections', self.selections, '', '', sublime.HIDDEN)
@@ -133,8 +144,10 @@ class SelectByRegexAll(SelectByRegexBase):
 			self.on_change,
 			self.on_cancel)
 
-	def on_change(self, rx):
-		self.rx = re.compile(rx, re.MULTILINE)
+	def on_change(self, nr):
+		self.nr = nr
+		self.rx = re.compile(self.regex_tmplt.substitute(nr=nr), re.MULTILINE)
+
 		self.inner_regions = []
 		self.outer_regions = []
 		self.start = 0

@@ -1,10 +1,11 @@
 [
 	{
-		"caption": "Select By Regex: Next",
-		"command": "select_by_regex_next"
+		"caption": "Deselect Every Nth: Next",
+		"command": "deselect_every_nth_next",
 	},
 	{
-		"caption": "Select By Regex: All",
-		"command": "select_by_regex_all"
+		"caption": "Deselect Every Nth: All",
+		"command": "deselect_every_nth_all",
 	}
+
 ]
